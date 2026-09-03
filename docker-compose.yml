@@ -1,0 +1,149 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: qaos-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-qaos_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      POSTGRES_DB: ${DB_NAME:-qaos_db}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - qaos-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-qaos_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: qaos-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-qaos_redis_pass}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - qaos-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # QA-OS Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: qaos-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # API Configuration
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      API_LOG_LEVEL: ${API_LOG_LEVEL:-INFO}
+      DEBUG: ${DEBUG:-false}
+
+      # Database
+      DATABASE_URL: postgresql://${DB_USER:-qaos_user}:${DB_PASSWORD:?set DB_PASSWORD in .env}@postgres:5432/${DB_NAME:-qaos_db}
+      DATABASE_POOL_SIZE: 20
+
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD:-qaos_redis_pass}@redis:6379/0
+
+      # LLM Configuration
+      LLM_PROVIDER: ${LLM_PROVIDER:-claude}
+      LLM_MODEL: ${LLM_MODEL:-claude-sonnet-5}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
+
+      # Agent Configuration
+      AGENT_TIMEOUT: ${AGENT_TIMEOUT:-300}
+      AGENT_RETRY_ATTEMPTS: ${AGENT_RETRY_ATTEMPTS:-3}
+      MAX_CONCURRENT_AGENTS: ${MAX_CONCURRENT_AGENTS:-5}
+
+      # Integrations
+      JIRA_URL: ${JIRA_URL:-}
+      JIRA_USERNAME: ${JIRA_USERNAME:-}
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
+
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      SLACK_ENABLED: ${SLACK_ENABLED:-false}
+
+      # Feature Flags
+      FEATURE_ENABLE_REGRESSION_ANALYSIS: ${FEATURE_ENABLE_REGRESSION_ANALYSIS:-true}
+      FEATURE_ENABLE_QUALITY_INSIGHTS: ${FEATURE_ENABLE_QUALITY_INSIGHTS:-true}
+      FEATURE_ENABLE_BUG_INVESTIGATION: ${FEATURE_ENABLE_BUG_INVESTIGATION:-true}
+
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+      - ./config:/app/config
+      - ./logs:/app/logs
+    networks:
+      - qaos-network
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+  # Optional: Prometheus for metrics (uncomment to enable)
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: qaos-prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+  #     - prometheus_data:/prometheus
+  #   networks:
+  #     - qaos-network
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+
+  # Optional: Grafana for dashboards (uncomment to enable)
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: qaos-grafana
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     GF_SECURITY_ADMIN_PASSWORD: admin
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #   networks:
+  #     - qaos-network
+  #   depends_on:
+  #     - prometheus
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  # prometheus_data:
+  #   driver: local
+  # grafana_data:
+  #   driver: local
+
+networks:
+  qaos-network:
+    driver: bridge

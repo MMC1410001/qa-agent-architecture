@@ -1,0 +1,385 @@
+# Agent Configuration for QA-OS
+# This file defines agent settings, prompts, and behavior
+
+agents:
+  requirement_analyst:
+    name: "Requirement Analyst"
+    description: "Analyzes requirements and extracts testable test cases"
+    enabled: true
+    timeout: 300
+    retry_attempts: 3
+    max_tokens: 4096
+    temperature: 0.7
+    prompt_template: "requirement_analyst"
+    inputs:
+      - type: document
+        description: "Product requirements or specification document"
+      - type: test_scope
+        description: "Scope of testing (functional, security, performance, etc.)"
+    outputs:
+      - type: requirements
+        description: "Extracted and structured requirements"
+      - type: test_mappings
+        description: "Mapping of requirements to test scenarios"
+    validation_rules:
+      - min_requirements: 1
+      - max_requirements: 1000
+
+  test_designer:
+    name: "Test Designer"
+    description: "Designs comprehensive test cases with coverage analysis"
+    enabled: true
+    timeout: 300
+    retry_attempts: 3
+    max_tokens: 8192
+    temperature: 0.5
+    prompt_template: "test_designer"
+    inputs:
+      - type: requirements
+        description: "Requirements to design tests for"
+      - type: test_type
+        description: "Type of tests (unit, integration, e2e, api, ui)"
+    outputs:
+      - type: test_cases
+        description: "Designed test cases with steps and assertions"
+      - type: test_coverage_analysis
+        description: "Coverage metrics and gaps"
+    techniques:
+      - boundary_value_analysis
+      - equivalence_partitioning
+      - state_transition
+      - decision_table
+    validation_rules:
+      - min_test_cases: 1
+      - max_test_cases: 500
+      - required_fields: ["name", "description", "steps", "expected_result"]
+
+  automation_engineer:
+    name: "Automation Engineer"
+    description: "Creates automation scripts from test cases"
+    enabled: true
+    timeout: 300
+    retry_attempts: 3
+    max_tokens: 8192
+    temperature: 0.3
+    prompt_template: "automation_engineer"
+    inputs:
+      - type: test_cases
+        description: "Test cases to automate"
+      - type: target_framework
+        description: "Automation framework (playwright, selenium, api, etc.)"
+    outputs:
+      - type: automation_code
+        description: "Generated automation scripts"
+      - type: page_objects
+        description: "Page object models"
+      - type: fixtures
+        description: "Test fixtures and utilities"
+    supported_frameworks:
+      - playwright
+      - selenium
+      - api
+      - rest
+      - graphql
+    validation_rules:
+      - required_imports: true
+      - syntax_validation: true
+
+  test_runner:
+    name: "Test Runner"
+    description: "Executes tests and manages execution environments"
+    enabled: true
+    timeout: 600
+    retry_attempts: 2
+    inputs:
+      - type: test_suite
+        description: "Test suite to execute"
+      - type: environment
+        description: "Target environment (dev, staging, prod)"
+    outputs:
+      - type: execution_results
+        description: "Test execution results and metrics"
+      - type: logs
+        description: "Detailed execution logs"
+    features:
+      - parallel_execution: true
+      - max_parallel_tests: 10
+      - headless_mode: true
+      - screenshot_on_failure: true
+      - video_recording: false
+    validation_rules:
+      - timeout_per_test: 300
+
+  bug_investigator:
+    name: "Bug Investigator"
+    description: "Analyzes test failures and generates bug reports"
+    enabled: true
+    timeout: 300
+    retry_attempts: 3
+    max_tokens: 6144
+    temperature: 0.7
+    prompt_template: "bug_investigator"
+    inputs:
+      - type: failure_data
+        description: "Test failure information"
+      - type: logs
+        description: "Execution logs and artifacts"
+    outputs:
+      - type: bug_report
+        description: "Detailed bug report with root cause analysis"
+      - type: reproduction_steps
+        description: "Steps to reproduce the issue"
+    analysis_types:
+      - root_cause_analysis
+      - impact_assessment
+      - reproduction_verification
+    validation_rules:
+      - required_fields: ["title", "description", "reproduction_steps", "expected_behavior", "actual_behavior"]
+
+  regression_planner:
+    name: "Regression Planner"
+    description: "Plans and optimizes regression test suites"
+    enabled: true
+    timeout: 300
+    retry_attempts: 3
+    max_tokens: 4096
+    temperature: 0.6
+    prompt_template: "regression_planner"
+    inputs:
+      - type: code_changes
+        description: "Changed files and modifications"
+      - type: test_inventory
+        description: "Available test cases and metrics"
+    outputs:
+      - type: regression_plan
+        description: "Prioritized regression test plan"
+      - type: risk_assessment
+        description: "Risk analysis of changes"
+    strategies:
+      - test_impact_analysis: true
+      - risk_based_selection: true
+      - coverage_optimization: true
+    validation_rules:
+      - min_selected_tests: 1
+
+  quality_insights:
+    name: "Quality Insights"
+    description: "Generates quality metrics and insights"
+    enabled: true
+    timeout: 300
+    retry_attempts: 2
+    max_tokens: 4096
+    temperature: 0.5
+    prompt_template: "quality_insights"
+    inputs:
+      - type: execution_history
+        description: "Historical test execution data"
+      - type: metrics
+        description: "Quality metrics and KPIs"
+    outputs:
+      - type: dashboard_data
+        description: "Data for quality dashboards"
+      - type: trend_analysis
+        description: "Quality trends and patterns"
+      - type: recommendations
+        description: "Improvement recommendations"
+    metrics:
+      - test_pass_rate
+      - test_coverage
+      - defect_density
+      - cycle_time
+      - failure_rate
+      - automation_ratio
+    validation_rules:
+      - required_metrics: ["test_pass_rate", "test_coverage"]
+
+# Prompt templates
+prompts:
+  requirement_analyst: |
+    You are an expert QA Requirements Analyst. Your task is to analyze requirements documents
+    and extract testable requirements, user stories, and test scenarios.
+
+    For each requirement, identify:
+    1. Clear, testable acceptance criteria
+    2. Functional areas to test
+    3. Test scenarios (positive, negative, edge cases)
+    4. Dependencies and relationships
+
+    Format output as JSON with structure:
+    {
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "title": "...",
+          "description": "...",
+          "acceptance_criteria": ["..."],
+          "test_scenarios": ["..."],
+          "risk_level": "high|medium|low"
+        }
+      ]
+    }
+
+  test_designer: |
+    You are an expert QA Test Designer specializing in comprehensive test case design.
+    Your task is to create detailed test cases from requirements.
+
+    For each requirement, design test cases using:
+    1. Boundary value analysis
+    2. Equivalence partitioning
+    3. State transition testing
+    4. Decision table testing
+
+    Include positive, negative, and edge cases. Format as JSON:
+    {
+      "test_cases": [
+        {
+          "id": "TC-001",
+          "title": "...",
+          "description": "...",
+          "preconditions": ["..."],
+          "steps": [
+            {
+              "step_number": 1,
+              "action": "...",
+              "expected_result": "..."
+            }
+          ],
+          "postconditions": ["..."],
+          "priority": "critical|high|medium|low",
+          "test_type": "functional|security|performance|usability"
+        }
+      ]
+    }
+
+  automation_engineer: |
+    You are an expert Automation Engineer. Your task is to convert test cases into
+    automation code using the specified framework.
+
+    Generate:
+    1. Clean, maintainable automation code
+    2. Page object models for reusability
+    3. Test fixtures and utilities
+    4. Proper error handling and assertions
+
+    Follow best practices:
+    - DRY (Don't Repeat Yourself)
+    - Page Object Model pattern
+    - Clear variable and function names
+    - Comprehensive comments
+    - Proper waits and synchronization
+
+    Output code with syntax highlighting and clear structure.
+
+  bug_investigator: |
+    You are an expert QA Bug Investigator. Analyze the test failure data provided
+    and create a comprehensive bug report.
+
+    For each failure, determine:
+    1. Root cause (application bug, test issue, environment issue)
+    2. Impact assessment
+    3. Steps to reproduce with precision
+    4. Actual vs expected behavior
+    5. Severity and priority
+
+    Format as JSON:
+    {
+      "bug_reports": [
+        {
+          "id": "BUG-001",
+          "title": "...",
+          "description": "...",
+          "root_cause": "...",
+          "reproduction_steps": ["..."],
+          "expected_behavior": "...",
+          "actual_behavior": "...",
+          "severity": "critical|high|medium|low",
+          "priority": "critical|high|medium|low",
+          "suggested_fix": "..."
+        }
+      ]
+    }
+
+  regression_planner: |
+    You are an expert Regression Test Planner. Analyze the code changes and create
+    an optimized regression test plan using risk-based selection.
+
+    Analyze:
+    1. Impact of changes on existing functionality
+    2. Risk areas that need thorough testing
+    3. Test coverage for changed code
+    4. Dependencies and related areas
+
+    Prioritize tests by:
+    1. Risk level
+    2. Code coverage impact
+    3. Historical failure rate
+
+    Format as JSON:
+    {
+      "regression_plan": {
+        "total_tests_available": 0,
+        "selected_tests": 0,
+        "reduction_percentage": 0,
+        "test_groups": [
+          {
+            "name": "...",
+            "priority": "critical|high|medium|low",
+            "test_ids": ["TC-001", "TC-002"],
+            "risk_level": "high|medium|low",
+            "estimated_time_minutes": 0
+          }
+        ]
+      }
+    }
+
+  quality_insights: |
+    You are a Quality Analytics Expert. Analyze the provided test execution history
+    and metrics to generate quality insights and recommendations.
+
+    Generate:
+    1. Quality dashboard data with key metrics
+    2. Trend analysis (improving/declining)
+    3. Patterns in failures and successes
+    4. Specific improvement recommendations
+
+    Output JSON:
+    {
+      "dashboard": {
+        "overall_health": 0.0,
+        "key_metrics": {
+          "test_pass_rate": 0.0,
+          "test_coverage": 0.0,
+          "defect_density": 0.0,
+          "automation_ratio": 0.0
+        }
+      },
+      "trends": ["..."],
+      "recommendations": ["..."]
+    }
+
+# Orchestration settings
+orchestration:
+  default_pipeline: "full_qa_pipeline"
+  event_driven: true
+  async_execution: true
+  max_concurrent_agents: 5
+
+pipelines:
+  full_qa_pipeline:
+    - requirement_analyst
+    - test_designer
+    - automation_engineer
+    - test_runner
+    - bug_investigator
+    - regression_planner
+    - quality_insights
+
+  smoke_test_pipeline:
+    - test_runner
+    - bug_investigator
+
+  regression_pipeline:
+    - regression_planner
+    - test_runner
+    - bug_investigator
+    - quality_insights
